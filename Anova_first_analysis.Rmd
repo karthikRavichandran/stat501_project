@@ -1,0 +1,145 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+---
+Here we're try to find our is there a diffence in arr_delay among the different airports
+
+Null Hypothesis (H0):
+There is no significant difference in the mean "arr_delay" among the different airports.
+
+Alternative Hypothesis (H1):
+There is a significant difference in the mean "arr_delay" among at least some of the airports.
+
+Explanation: 
+H0: mu_1 = mu_2 = mu_3 = ... = mu_k (where mu represents the mean "arr_delay" for each airport)
+H1: At least one pair of means mu_i and mu_j is different.
+Here, mu_1, mu_2, ..., mu_k represent the mean "arr_delay" for each airport category. If the p-value is less than the significance level (commonly used in our Stat501 class:  0.05), we reject the null hypothesis and conclude that there is evidence to suggest that at least some of the means are different.
+
+Loading the data set only for 4 Top Airports: AUS, MSP, BNA, PIT
+```{r}
+library(readr)
+raw_top4_airport <- read_csv("~/Documents/Stat501/project/raw_top4_airport.csv")
+```
+
+
+```{r}
+library(ggplot2)
+
+# Create a box plot
+ggplot(raw_top4_airport, aes(x = airport, y = arr_delay)) +
+  geom_boxplot(fill = "skyblue", color = "black") +
+  labs(title = "Box Plot of arr_delay by Carrier",
+       x = "Carrier",
+       y = "arr_delay") +
+  theme_minimal()
+```
+Through this box plot, we can see that we have some outliers. So, the we're making ANOVA analysis with and without Outlier. 
+
+a) With Outliers, the Anova results are:
+```{r}
+
+library(tidyverse)
+
+anova_result_w_outliers <- aov(arr_delay ~ airport, data = raw_top4_airport)
+
+print(summary(anova_result_w_outliers))
+
+```
+Interpretation:
+
+Df (Degrees of Freedom): There are three degrees of freedom for the factor "airport" and 741 degrees of freedom for residuals.
+Sum Sq (Sum of Squares): This represents the sum of squared differences between the observed values and the mean. For "airport," it is 2.789e+09, and for residuals, it is 9.642e+10.
+Mean Sq (Mean Square): Mean Squares are calculated by dividing the Sum of Squares by the corresponding degrees of freedom.
+F value: The F statistic is a ratio of the variance between groups to the variance within groups. Here, it is 7.144.
+Pr(>F): This is the p-value associated with the F statistic. It is extremely small (9.84e-05), indicating that there is a significant difference in mean "arr_delay" among at least two airports.
+
+Since we are rejecting the Null Hypothesis, we want to investigae fruther. The method used for investigating the pairs is Tukey's post-hoc test:
+
+```{r}
+# Perform Tukey's post-hoc test
+tukey_result_w_outliers <- TukeyHSD(anova_result_w_outliers)
+
+# Display Tukey's post-hoc results
+print(tukey_result_w_outliers)
+```
+
+diff (Difference): The estimated difference in means between the pairs of airports for "arr_delay."
+lwr and upr (Lower and Upper Confidence Intervals): The 95% confidence interval for the difference in means.
+p adj (Adjusted p-value): The p-value adjusted for multiple comparisons (Tukey's correction).
+Interpretation:
+BNA-AUS: The difference in mean "arr_delay" between Nashville (BNA) and Austin (AUS) is not statistically significant (p = 0.9918).
+
+MSP-AUS: The difference in mean "arr_delay" between Minneapolis (MSP) and Austin (AUS) is not statistically significant (p = 0.8366).
+
+PIT-AUS: The difference in mean "arr_delay" between Pittsburgh (PIT) and Austin (AUS) is statistically significant (p = 0.00299). The negative difference suggests that Austin has a higher mean delay than Pittsburgh.
+
+MSP-BNA: The difference in mean "arr_delay" between Minneapolis (MSP) and Nashville (BNA) is not statistically significant (p = 0.6758).
+
+PIT-BNA: The difference in mean "arr_delay" between Pittsburgh (PIT) and Nashville (BNA) is statistically significant (p = 0.00812). The negative difference suggests that Nashville has a higher mean delay than Pittsburgh.
+
+PIT-MSP: The difference in mean "arr_delay" between Pittsburgh (PIT) and Minneapolis (MSP) is statistically significant (p = 0.0001087). The negative difference suggests that Minneapolis has a higher mean delay than Pittsburgh.
+
+In summary, the adjusted p-values indicate whether the differences in mean "arr_delay" are statistically significant after correcting for multiple comparisons.
+
+
+b) We are eager to know what effect if we remove outliers
+So, after removing outlier, we performed same analysis again.
+```{r}
+# Load the required libraries
+library(ggplot2)
+
+# Function to remove outliers
+remove_outliers <- function(x) {
+  q <- quantile(x, c(0.25, 0.75))
+  iqr <- q[2] - q[1]
+  lower_bound <- q[1] - 1.5 * iqr
+  upper_bound <- q[2] + 1.5 * iqr
+  return(x[x >= lower_bound & x <= upper_bound])
+}
+
+# Remove outliers from 'arr_delay'
+flight_data_no_outliers <- raw_top4_airport %>%
+  filter(!arr_delay %in% remove_outliers(raw_top4_airport$arr_delay))
+
+# Create a box plot without outliers
+ggplot(flight_data_no_outliers, aes(x = airport, y = arr_delay)) +
+  geom_boxplot(fill = "skyblue", color = "black") +
+  labs(title = "Box Plot of arr_delay by Carrier (Without Outliers)",
+       x = "Carrier",
+       y = "arr_delay") +
+  theme_minimal()
+```
+
+```{r}
+# Load the required libraries
+library(tidyverse)
+
+# Assuming your data is stored in a dataframe named flight_data_no_outliers
+# Perform one-way ANOVA
+anova_result_no_outliers <- aov(arr_delay ~ airport, data = flight_data_no_outliers)
+
+# Display ANOVA results
+print(summary(anova_result_no_outliers))
+
+```
+
+The p-value (0.00584) is less than 0.05, indicating that there is a significant difference in mean "arr_delay" among at least two airports.
+
+Tukey Multiple Comparisons:
+
+```{r}
+# Perform Tukey's post-hoc test
+tukey_result <- TukeyHSD(anova_result_no_outliers)
+
+# Display Tukey's post-hoc results
+print(tukey_result)
+```
+
+The p-value for the pair MSP-AUS is 0.0146183 and PIT-MSP, that are less than 0.05. This suggests a significant difference in mean "arr_delay" between Minneapolis (MSP) and Austin (AUS), PIT and MSP respectively .
+
+
+
